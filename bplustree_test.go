@@ -2,6 +2,7 @@ package bplustree
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -151,7 +152,7 @@ func TestDeleteKeyNoExist(t *testing.T) {
 	numKeys := 3
 	tr := newTree(t, 4, numKeys)
 	err := tr.Delete(4)
-	if err != ErrKeyNotFound {
+	if err == nil || !strings.Contains(err.Error(), "key not found") {
 		t.Fatalf("expect err %+v but got %+v", ErrKeyNotFound, err)
 	}
 }
@@ -257,4 +258,45 @@ func TestDeleteLeafBorrwoRight(t *testing.T) {
 		t.Fatalf("error deleting key %d: %+v", 4, err)
 	}
 	t.Logf("b tree after deleting 4:\n%s\n", tr.String())
+}
+
+func TestDeleteInternalNodeBorrowLeft(t *testing.T) {
+	numKeys := 14
+	tr := newTree(t, 4, numKeys)
+	t.Logf("b tree:\n%s\n", tr.String())
+
+	for i := 1; i < 4; i++ {
+		if err := tr.Delete(i); err != nil {
+			t.Fatalf("error deleting key %d: %+v", i, err)
+		}
+		t.Logf("b tree after deleting %d:\n%s\n", i, tr.String())
+	}
+}
+
+func TestDeleteInternalNodeBorrowRight(t *testing.T) {
+	end := 8
+	tr, _ := NewTree(4)
+	for i := 1; i < end; i++ {
+		if err := tr.Insert(i, i); err != nil {
+			t.Fatalf("error insertiing key %d: %+v", i, err)
+		}
+
+		t.Logf("b tree after inserting key %d:\n%s", i, tr.String())
+	}
+
+	for i := 16; i >= 10; i-- {
+		if err := tr.Insert(i, i); err != nil {
+			t.Fatalf("error insertiing key %d: %+v", i, err)
+		}
+
+		t.Logf("b tree after inserting key %d:\n%s", i, tr.String())
+	}
+
+	for i := 1; i < 4; i++ {
+		if err := tr.Delete(i); err != nil {
+			t.Fatalf("error deleting key %d: %+v", i, err)
+		}
+
+		t.Logf("b tree after deleting key %d:\n%s", i, tr.String())
+	}
 }
