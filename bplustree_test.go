@@ -133,3 +133,98 @@ func TestInsertNode(t *testing.T) {
 		t.Logf("tree after insert key: %d\n%s\n", key, tr.String())
 	}
 }
+
+func newTree(t *testing.T, n int, numKeys int) *BPlusTree {
+	tr, _ := NewTree(n)
+	for i := 1; i <= numKeys; i++ {
+		if err := tr.Insert(i, i); err != nil {
+			t.Fatalf("error inserting key: %d: %+v", i, err)
+		}
+
+		// t.Logf("tree after insert key: %d\n%s", i, tr.String())
+	}
+
+	return tr
+}
+
+func TestDeleteKeyNoExist(t *testing.T) {
+	numKeys := 3
+	tr := newTree(t, 4, numKeys)
+	err := tr.Delete(4)
+	if err != ErrKeyNotFound {
+		t.Fatalf("expect err %+v but got %+v", ErrKeyNotFound, err)
+	}
+}
+
+func TestDeleteRootLeaf(t *testing.T) {
+	numKeys := 3
+	tr := newTree(t, 4, numKeys)
+	t.Logf("b tree:\n%s\n", tr.String())
+	for i := 1; i <= numKeys; i += 1 {
+		if err := tr.Delete(i); err != nil {
+			t.Fatalf("error deleting key %d: %+v", i, err)
+		}
+
+		t.Logf("tree after deleting key %d:\n%s", i, tr.String())
+	}
+}
+
+func TestDeleteMergeLeftLeaf(t *testing.T) {
+	numKeys := 5
+	tr := newTree(t, 4, numKeys)
+	t.Logf("b tree:\n%s\n", tr.String())
+
+	if err := tr.Delete(4); err != nil {
+		t.Fatalf("error deleting key %d: %+v", 4, err)
+	}
+	t.Logf("b tree after deleting key %d:\n%s\n", 4, tr.String())
+
+	// will merge (1, 2) with (5) after deleting 3
+	if err := tr.Delete(3); err != nil {
+		t.Fatalf("error deleting key %d: %+v", 3, err)
+	}
+	t.Logf("b tree after deleting key %d:\n%s\n", 3, tr.String())
+}
+
+func TestDeleteMergeRightLeaf(t *testing.T) {
+	numKeys := 5
+	tr := newTree(t, 4, numKeys)
+	t.Logf("b tree:\n%s\n", tr.String())
+
+	if err := tr.Delete(4); err != nil {
+		t.Fatalf("error deleting key %d: %+v", 4, err)
+	}
+	t.Logf("b tree after deleting key %d:\n%s\n", 4, tr.String())
+
+	// will merge (1, 2) with (5) after deleting 3
+	if err := tr.Delete(2); err != nil {
+		t.Fatalf("error deleting key %d: %+v", 3, err)
+	}
+	t.Logf("b tree after deleting key %d:\n%s\n", 2, tr.String())
+}
+
+func TestDeleteMergeLeftInternalNode(t *testing.T) {
+	numKeys := 12
+	tr := newTree(t, 4, numKeys)
+	t.Logf("b tree:\n%s\n", tr.String())
+
+	for i := 12; i > 9; i-- {
+		if err := tr.Delete(i); err != nil {
+			t.Fatalf("error deleting key %d: %+v", i, err)
+		}
+		t.Logf("b tree after deleting key %d:\n%s\n", i, tr.String())
+	}
+}
+
+func TestDeleteMergeRightInternalNode(t *testing.T) {
+	numKeys := 12
+	tr := newTree(t, 4, numKeys)
+	t.Logf("b tree:\n%s\n", tr.String())
+
+	for i := 6; i > 3; i-- {
+		if err := tr.Delete(i); err != nil {
+			t.Fatalf("error deleting key %d: %+v", i, err)
+		}
+		t.Logf("b tree after deleting key %d:\n%s\n", i, tr.String())
+	}
+}

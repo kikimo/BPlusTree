@@ -6,6 +6,8 @@ import (
 	"github.com/golang/glog"
 )
 
+var ErrKeyNotFound error = fmt.Errorf("key not found")
+
 type BPlusTree struct {
 	n    int // n paramater of BPlusTree
 	root *tnode
@@ -74,7 +76,7 @@ func (t *BPlusTree) insertInParent(n *tnode, key int, newN *tnode) error {
 	return t.insertInParent(parent, newKey, newInternalN)
 }
 
-func (t *BPlusTree) findLeafForInsert(key int) *tnode {
+func (t *BPlusTree) findLeaf(key int) *tnode {
 	r := t.root
 
 	for !r.isLeaf {
@@ -93,7 +95,7 @@ func (t *BPlusTree) findLeafForInsert(key int) *tnode {
 
 func (t *BPlusTree) Insert(key int, p interface{}) error {
 	// just insert root
-	n := t.findLeafForInsert(key)
+	n := t.findLeaf(key)
 	glog.V(2).Infof("insert key %d to leaf: %+v, parent: %+v", key, n, n.parent)
 	if err := n.insertLeaf(key, p); err != nil {
 		return fmt.Errorf("error insert key: %d, err: %+v", key, err)
@@ -124,29 +126,134 @@ func (t *BPlusTree) Insert(key int, p interface{}) error {
 	return t.insertInParent(n, newN.keys[0], newN)
 }
 
+// TODO: unit test me
 func (t *BPlusTree) Find(key int) (interface{}, error) {
-	// TODO: find node
-	return t.root, nil
+	leaf := t.findLeaf(key)
+	pos := leaf.findInsertPos(key)
+	if pos >= len(leaf.keys) || leaf.keys[pos] != key {
+		return nil, ErrKeyNotFound
+	}
+
+	return leaf.pointers[pos], nil
+}
+
+func (t *BPlusTree) mergeNodes(left *tnode, key int, right *tnode) bool {
+	if left.isLeaf && right.isLeaf {
+		return t.mergeLeaves(left, right)
+	} else if !left.isLeaf && !right.isLeaf {
+		return t.mergeNonLeaves(left, key, right)
+	}
+
+	glog.Fatalf("merge leaf to internal node: %+v, %+v", left, right)
+	panic("unreachable")
+}
+
+func (t *BPlusTree) mergeLeaves(left, right *tnode) bool {
+	if len(left.pointers)+len(right.pointers)-1 > t.n {
+		return false
+	}
+
+	left.pointers = left.pointers[:len(left.pointers)-1]
+	left.pointers = append(left.pointers, right.pointers...)
+	left.keys = append(left.keys, right.keys...)
+
+	if len(left.keys)+1 != len(left.pointers) {
+		glog.Fatalf("illegal node status: %+v", left)
+	}
+
+	return true
+}
+
+func (t *BPlusTree) mergeNonLeaves(left *tnode, key int, right *tnode) bool {
+	glog.V(2).Infof("merge internal node, left: %+v, right: %+v", left, right)
+	if len(left.pointers)+len(right.pointers) > t.n {
+		return false
+	}
+
+	// adjust parent pointer
+	for _, p := range right.pointers {
+		c := p.(*tnode)
+		c.parent = left
+	}
+
+	left.pointers = append(left.pointers, right.pointers...)
+	left.keys = append(left.keys, key)
+	left.keys = append(left.keys, right.keys...)
+
+	if len(left.keys)+1 != len(left.pointers) {
+		glog.Fatalf("illegal node status: %+v", left)
+	}
+
+	return true
 }
 
 func (t *BPlusTree) Delete(key int) error {
-	panic("no impl")
-}
+	deleted, err := t.deleteEntry(t.root, key)
+	if err != nil {
+		return fmt.Errorf("error deleting key %d: %+v", key, err)
+	}
 
-func (tn *tnode) find(key int) (int, error) {
-	s, e := 0, len(tn.keys)
-	for s < e {
-		m := (s + e) / 2
-		if tn.keys[m] > key {
-			e = m
-		} else if tn.keys[m] < key {
-			s = m + 1
-		} else { // tn.keys[m] == key
-			return m, nil
+	if !deleted {
+		return nil
+	}
+
+	if len(t.root.pointers) == 1 {
+		if t.root.isLeaf {
+			t.root.pointers = t.root.pointers[:0]
+		} else {
+			t.root = t.root.pointers[0].(*tnode)
 		}
 	}
 
-	return 0, fmt.Errorf("key %d not found", key)
+	return nil
+}
+
+func (t *BPlusTree) deleteEntry(root *tnode, key int) (bool, error) {
+	if root.isLeaf {
+		return true, root.deleteEntry(key)
+	}
+
+	pos := root.findInsertPos(key)
+	if pos < len(root.keys) && root.keys[pos] == key {
+		pos += 1
+	}
+
+	child := root.pointers[pos].(*tnode)
+	deleted, err := t.deleteEntry(child, key)
+	if err != nil || !deleted {
+		return false, err
+	}
+
+	if !child.tooFewPointer() {
+		return false, nil
+	}
+
+	// too few pointers, try merge entries
+	if pos-1 >= 0 {
+		if t.mergeNodes(root.pointers[pos-1].(*tnode), root.keys[pos-1], child) {
+			root.deleteEntryAt(pos - 1)
+			return true, nil
+		}
+	}
+
+	if pos+1 <= len(root.pointers) {
+		if t.mergeNodes(child, root.keys[pos], root.pointers[pos+1].(*tnode)) {
+			root.deleteEntryAt(pos)
+			return true, nil
+		}
+	}
+
+	// now try redistribute entries
+
+	panic("no impl")
+}
+
+func (tn *tnode) tooFewPointer() bool {
+	if tn.isLeaf {
+		return len(tn.pointers) < cap(tn.keys)/2+1
+	}
+
+	return len(tn.pointers) < (cap(tn.keys)+1)/2
 }
 
 func (tn *tnode) insert(key int, p interface{}) error {
@@ -167,8 +274,8 @@ func (tn *tnode) insertNonLeaf(key int, p interface{}) error {
 	return nil
 }
 
+// findInsertPos find smallest k in keys greater or equal to key
 func (tn *tnode) findInsertPos(key int) int {
-	// find smallest k in tn.keys greater or equal to key
 	s, e := 0, len(tn.keys)
 	for s < e {
 		m := (s + e) / 2
@@ -180,6 +287,32 @@ func (tn *tnode) findInsertPos(key int) int {
 	}
 
 	return s
+}
+
+// delete entry at pos
+func (tn *tnode) deleteEntryAt(pos int) {
+	// delete entry at from leaf
+	glog.V(2).Infof("deleting entry at %d: %+v", pos, tn)
+	copy(tn.keys[pos:], tn.keys[pos+1:])
+	tn.keys = tn.keys[:len(tn.keys)-1]
+
+	ppos := pos
+	if !tn.isLeaf {
+		ppos += 1
+	}
+	copy(tn.pointers[ppos:], tn.pointers[ppos+1:])
+	tn.pointers = tn.pointers[:len(tn.pointers)-1]
+}
+
+// delete entry with key
+func (tn *tnode) deleteEntry(key int) error {
+	pos := tn.findInsertPos(key)
+	if pos >= len(tn.keys) || tn.keys[pos] != key {
+		return ErrKeyNotFound
+	}
+
+	tn.deleteEntryAt(pos)
+	return nil
 }
 
 func (tn *tnode) insertLeaf(key int, p interface{}) error {
