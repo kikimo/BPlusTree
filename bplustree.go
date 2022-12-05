@@ -141,7 +141,7 @@ func (t *BPlusTree) mergeNodes(left *tnode, key int, right *tnode) bool {
 	if left.isLeaf && right.isLeaf {
 		return t.mergeLeaves(left, right)
 	} else if !left.isLeaf && !right.isLeaf {
-		return t.mergeNonLeaves(left, key, right)
+		return t.mergeInternalNodes(left, key, right)
 	}
 
 	glog.Fatalf("merge leaf to internal node: %+v, %+v", left, right)
@@ -164,7 +164,7 @@ func (t *BPlusTree) mergeLeaves(left, right *tnode) bool {
 	return true
 }
 
-func (t *BPlusTree) mergeNonLeaves(left *tnode, key int, right *tnode) bool {
+func (t *BPlusTree) mergeInternalNodes(left *tnode, key int, right *tnode) bool {
 	glog.V(2).Infof("merge internal node, left: %+v, right: %+v", left, right)
 	if len(left.pointers)+len(right.pointers) > t.n {
 		return false
@@ -208,6 +208,90 @@ func (t *BPlusTree) Delete(key int) error {
 	return nil
 }
 
+func (t *BPlusTree) borrowFromLeft(left *tnode, key *int, right *tnode) {
+	if left.isLeaf && right.isLeaf {
+		t.leafBorrowFromLeft(left, key, right)
+		return
+	}
+
+	if !left.isLeaf && !right.isLeaf {
+		t.internalNodeBorrowFromLeft(left, key, right)
+		return
+	}
+
+	glog.Fatalf("leaf cannot borrow from internal node(vice vesa), left: %+v, right: %+v", left, right)
+	panic("unreachable")
+}
+
+func (t *BPlusTree) borrowFromRight(left *tnode, key *int, right *tnode) {
+	if left.isLeaf && right.isLeaf {
+		t.leafBorrowFromRight(left, key, right)
+		return
+	}
+
+	if !left.isLeaf && !right.isLeaf {
+		t.internalNodeBorrowFromRight(left, key, right)
+		return
+	}
+
+	glog.Fatalf("leaf cannot borrow from internal node(vice vesa), left: %+v, right: %+v", left, right)
+	panic("unreachable")
+}
+
+func (t *BPlusTree) leafBorrowFromLeft(left *tnode, key *int, right *tnode) {
+	sz := len(left.keys)
+	k := left.keys[sz-1]
+	p := left.pointers[sz-1]
+
+	// shrink left by one
+	left.keys = left.keys[:sz-1]
+	left.pointers[sz-1] = left.pointers[sz]
+	left.pointers = left.pointers[:sz]
+
+	*key = k
+
+	// prepend entry (k, p) to right
+	// expand right first
+	sz = len(right.keys)
+	right.keys = right.keys[:sz+1]
+	copy(right.keys[1:], right.keys[:sz-1])
+	right.pointers = right.pointers[:sz+2]
+	copy(right.pointers[1:], right.pointers[:sz])
+	right.keys[0] = k
+	right.pointers[0] = p
+}
+
+func (t *BPlusTree) leafBorrowFromRight(left *tnode, key *int, right *tnode) {
+	sz := len(right.keys)
+	k := right.keys[0]
+	p := right.pointers[0]
+
+	// shrink right by one
+	copy(right.keys, right.keys[1:])
+	right.keys = right.keys[:sz-1]
+	copy(right.pointers, right.pointers[1:])
+	right.pointers = right.pointers[:sz]
+
+	*key = k
+
+	// append entry (k, p) to left
+	// expand left first
+	sz = len(left.keys)
+	left.keys = left.keys[:sz+1]
+	left.keys[sz] = k
+	left.pointers = left.pointers[:sz+2]
+	left.pointers[sz+1] = left.pointers[sz]
+	left.pointers[sz] = p
+}
+
+func (t *BPlusTree) internalNodeBorrowFromLeft(left *tnode, key *int, right *tnode) {
+	panic("no impl")
+}
+
+func (t *BPlusTree) internalNodeBorrowFromRight(left *tnode, key *int, right *tnode) {
+	panic("no impl")
+}
+
 func (t *BPlusTree) deleteEntry(root *tnode, key int) (bool, error) {
 	if root.isLeaf {
 		return true, root.deleteEntry(key)
@@ -236,7 +320,8 @@ func (t *BPlusTree) deleteEntry(root *tnode, key int) (bool, error) {
 		}
 	}
 
-	if pos+1 <= len(root.pointers) {
+	// TODO: when pos + 1 >= len(root.pointers) holds
+	if pos+1 < len(root.pointers) {
 		if t.mergeNodes(child, root.keys[pos], root.pointers[pos+1].(*tnode)) {
 			root.deleteEntryAt(pos)
 			return true, nil
@@ -244,8 +329,18 @@ func (t *BPlusTree) deleteEntry(root *tnode, key int) (bool, error) {
 	}
 
 	// now try redistribute entries
+	if pos-1 >= 0 {
+		t.borrowFromLeft(root.pointers[pos-1].(*tnode), &root.keys[pos-1], child)
+		return false, nil
+	}
 
-	panic("no impl")
+	if pos+1 < len(root.pointers) {
+		t.borrowFromRight(child, &root.keys[pos], root.pointers[pos+1].(*tnode))
+		return false, nil
+	}
+
+	glog.Fatalf("unable to delete key %d from %+v", key, root)
+	panic("unreachable")
 }
 
 func (tn *tnode) tooFewPointer() bool {

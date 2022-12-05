@@ -228,3 +228,33 @@ func TestDeleteMergeRightInternalNode(t *testing.T) {
 		t.Logf("b tree after deleting key %d:\n%s\n", i, tr.String())
 	}
 }
+
+func TestDeleteLeafBorrwoLeft(t *testing.T) {
+	numKeys := 1
+	tr := newTree(t, 4, numKeys)
+	tr.Insert(8, 8)
+	tr.Insert(4, 4)
+	tr.Insert(9, 9)
+	tr.Insert(5, 5)
+	t.Logf("b tree:\n%s\n", tr.String())
+
+	if err := tr.Delete(8); err != nil {
+		t.Fatalf("error deleting key %d: %+v", 8, err)
+	}
+	t.Logf("b tree after deleting 8:\n%s\n", tr.String())
+}
+
+func TestDeleteLeafBorrwoRight(t *testing.T) {
+	numKeys := 1
+	tr := newTree(t, 4, numKeys)
+	tr.Insert(7, 7)
+	tr.Insert(4, 4)
+	tr.Insert(9, 9)
+	tr.Insert(8, 8)
+	t.Logf("b tree:\n%s\n", tr.String())
+
+	if err := tr.Delete(4); err != nil {
+		t.Fatalf("error deleting key %d: %+v", 4, err)
+	}
+	t.Logf("b tree after deleting 4:\n%s\n", tr.String())
+}
