@@ -8,6 +8,7 @@ import (
 
 var ErrKeyNotFound error = fmt.Errorf("key not found")
 
+// TODO: check parent pointer invariant
 type BPlusTree struct {
 	n    int // n paramater of BPlusTree
 	root *tnode
@@ -30,53 +31,6 @@ func newTNode(isLeaf bool, capcity int) *tnode {
 	return n
 }
 
-func (t *BPlusTree) insertInParent(n *tnode, key int, newN *tnode) error {
-	glog.V(2).Infof("insert into parent, key: %d, node: %+v", key, newN)
-	if n == t.root {
-		newRoot := newTNode(false, t.n)
-		n.parent = newRoot
-		newN.parent = newRoot
-		newRoot.pointers = make([]interface{}, 0, t.n+1)
-		// FIXME: ok to append() here?
-		newRoot.pointers = append(newRoot.pointers, n, newN)
-		newRoot.keys = append(newRoot.keys, key)
-		t.root = newRoot
-
-		return nil
-	}
-
-	parent := n.parent
-	parent.insertNonLeaf(key, newN)
-	if len(parent.pointers) <= t.n {
-		return nil
-	}
-
-	// split at ceil((n + 1) / 2)
-	// (1) n == 3 -> 2
-	// (2) n == 4 -> 3
-	pos := t.n/2 + 1
-	newInternalN := newTNode(false, t.n)
-	newInternalN.parent = parent.parent
-
-	// split pointers
-	newInternalN.pointers = newInternalN.pointers[:len(parent.pointers[pos:])]
-	copy(newInternalN.pointers, parent.pointers[pos:])
-	// adjust parent for splited children
-	for _, p := range newInternalN.pointers {
-		child := p.(*tnode)
-		child.parent = newInternalN
-	}
-	parent.pointers = parent.pointers[:pos]
-
-	// split keys
-	newKey := parent.keys[pos-1]
-	newInternalN.keys = newInternalN.keys[:len(parent.keys[pos:])]
-	copy(newInternalN.keys, parent.keys[pos:])
-	parent.keys = parent.keys[:pos-1]
-
-	return t.insertInParent(parent, newKey, newInternalN)
-}
-
 func (t *BPlusTree) findLeaf(key int) *tnode {
 	r := t.root
 
@@ -95,36 +49,128 @@ func (t *BPlusTree) findLeaf(key int) *tnode {
 }
 
 func (t *BPlusTree) Insert(key int, p interface{}) error {
-	// just insert root
-	n := t.findLeaf(key)
-	glog.V(2).Infof("insert key %d to leaf: %+v, parent: %+v", key, n, n.parent)
-	if err := n.insertLeaf(key, p); err != nil {
-		return fmt.Errorf("error insert key: %d, err: %+v", key, err)
+	newEntry, err := t.doInsert(t.root, key, p)
+	if err != nil {
+		return err
 	}
 
-	if len(n.pointers) <= t.n {
-		return nil
+	if newEntry != nil {
+		newRoot := newTNode(false, t.n)
+		newRoot.pointers = newRoot.pointers[:2]
+		newRoot.pointers[0] = t.root
+		newRoot.pointers[1] = newEntry.node
+		newRoot.keys = newRoot.keys[:1]
+		newRoot.keys[0] = newEntry.key
+		t.root = newRoot
 	}
 
-	// len(n.pointers) == t.n + 1
-	newN := newTNode(true, t.n)
-	newN.parent = n.parent
+	return nil
+}
 
+func (t *BPlusTree) splitInternalNode(node *tnode) *entry {
+	glog.V(2).Infof("spliting internal node: %+v", node)
+	// split at ceil((n + 1) / 2)
+	// (1) n == 3 -> 2
+	// (2) n == 4 -> 3
+	pos := t.n/2 + 1
+	newN := newTNode(false, t.n)
+	newN.parent = node.parent
+
+	// split pointers
+	newN.pointers = newN.pointers[:len(node.pointers[pos:])]
+	copy(newN.pointers, node.pointers[pos:])
+	// adjust parent for splited children
+	for _, p := range newN.pointers {
+		child := p.(*tnode)
+		child.parent = newN
+	}
+	node.pointers = node.pointers[:pos]
+
+	// split keys
+	newKey := node.keys[pos-1]
+	newN.keys = newN.keys[:len(node.keys[pos:])]
+	copy(newN.keys, node.keys[pos:])
+	node.keys = node.keys[:pos-1]
+
+	glog.V(2).Infof("new entry after split internal node: key(%d), %+v", newKey, newN)
+	return &entry{key: newKey, node: newN}
+}
+
+func (t *BPlusTree) splitLeafNode(node *tnode) *entry {
+	glog.V(2).Infof("spliting leaf node: %+v", node)
 	// split leaf at ceil(n/2) -> [0, ceil(n/2)] /CUP [ceil(n/2)+1:]
 	pos := (t.n + 1) / 2 // (tn + 1) / 2 == ceil(n / 2)
 
-	newN.pointers = newN.pointers[:len(n.pointers[pos:])]
-	copy(newN.pointers, n.pointers[pos:])
-	n.pointers = n.pointers[:pos+1]
+	newN := newTNode(true, t.n)
+	newN.parent = node.parent
+	newN.pointers = newN.pointers[:len(node.pointers[pos:])]
+	copy(newN.pointers, node.pointers[pos:])
+	node.pointers = node.pointers[:pos+1]
 
-	newN.keys = newN.keys[:len(n.keys[pos:])]
-	copy(newN.keys, n.keys[pos:])
-	n.keys = n.keys[:pos]
+	newN.keys = newN.keys[:len(node.keys[pos:])]
+	copy(newN.keys, node.keys[pos:])
+	node.keys = node.keys[:pos]
 
 	// connect to sibling
-	n.pointers[pos] = newN
+	node.pointers[pos] = newN
 
-	return t.insertInParent(n, newN.keys[0], newN)
+	glog.V(2).Infof("new entry after split leaf: %+v", newN)
+	return &entry{key: newN.keys[0], node: newN}
+}
+
+type entry struct {
+	key  int
+	node *tnode
+}
+
+func (t *BPlusTree) doInsert(root *tnode, key int, p interface{}) (*entry, error) {
+	if root.isLeaf {
+		if err := root.insertLeaf(key, p); err != nil {
+			return nil, err
+		}
+
+		var newEntry *entry = nil
+		if len(root.pointers) == t.n+1 {
+			newEntry = t.splitLeafNode(root)
+		}
+
+		// invariant check
+		if len(root.pointers) > t.n+1 {
+			glog.Fatalf("illegal node pointer size: %+v", root)
+		}
+
+		return newEntry, nil
+	}
+
+	pos := root.findInsertPos(key)
+	if pos < len(root.keys) && root.keys[pos] == key {
+		// 1. pos >= len(root.keys) -> key is greater than all values in root.keys
+		// 2. root.keys[pos] == key -> key resides in root.pointer[pos+1]
+		pos += 1
+	}
+
+	newChild, err := t.doInsert(root.pointers[pos].(*tnode), key, p)
+	if err != nil {
+		return nil, err
+	}
+
+	if newChild == nil {
+		return nil, nil
+	}
+
+	// insert newNode after pos
+	root.insertNonLeafAt(pos, newChild.key, newChild.node)
+	if len(root.pointers) <= t.n {
+		return nil, nil
+	}
+
+	// invariant check
+	if len(root.pointers) != t.n+1 {
+		glog.Fatalf("illegal node pointer size: %+v", root)
+	}
+
+	newSibling := t.splitInternalNode(root)
+	return newSibling, nil
 }
 
 // TODO: unit test me
@@ -353,7 +399,7 @@ func (t *BPlusTree) deleteEntry(root *tnode, key int) (bool, error) {
 		return false, err
 	}
 
-	if !child.tooFewPointer() {
+	if !child.tooFewPointers() {
 		return false, nil
 	}
 
@@ -388,30 +434,12 @@ func (t *BPlusTree) deleteEntry(root *tnode, key int) (bool, error) {
 	panic("unreachable")
 }
 
-func (tn *tnode) tooFewPointer() bool {
+func (tn *tnode) tooFewPointers() bool {
 	if tn.isLeaf {
 		return len(tn.pointers) < cap(tn.keys)/2+1
 	}
 
 	return len(tn.pointers) < (cap(tn.keys)+1)/2
-}
-
-func (tn *tnode) insert(key int, p interface{}) error {
-	if tn.isLeaf {
-		return tn.insertLeaf(key, p)
-	}
-
-	return tn.insertNonLeaf(key, p)
-}
-
-func (tn *tnode) insertNonLeaf(key int, p interface{}) error {
-	pos := tn.findInsertPos(key)
-	if pos < len(tn.keys) && tn.keys[pos] == key {
-		return fmt.Errorf("duplicate key %d in internal node, keys: %+v", key, tn.keys)
-	}
-
-	tn.insertNonLeafAt(pos, key, p)
-	return nil
 }
 
 // findInsertPos find smallest k in keys greater or equal to key
@@ -481,6 +509,7 @@ func (tn *tnode) insertNonLeafAt(index int, key int, p interface{}) {
 	tn.pointers[index+1] = p
 }
 
+// insertLeafAt insert entry (key, p) at index
 func (tn *tnode) insertLeafAt(index int, key int, p interface{}) {
 	nsz := len(tn.keys) + 1
 	if nsz > cap(tn.keys) {

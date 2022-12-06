@@ -7,44 +7,22 @@ import (
 )
 
 func TestInsertLeaf(t *testing.T) {
-	tn := newTNode(true, 5)
-	tn.insert(4, 4)
-	tn.insert(1, 1)
-	tn.insert(2, 2)
-	tn.insert(5, 5)
-	tn.insert(3, 3)
-	t.Logf("%+v", tn.keys)
-	t.Logf("%+v", tn.pointers)
+	tr := newTree(t, 4, 0, 0)
+	tr.Insert(2, 2)
+	tr.Insert(1, 1)
+	tr.Insert(3, 3)
 
-	wkeys := []int{1, 2, 3, 4, 5}
-	if !reflect.DeepEqual(tn.keys, wkeys) {
-		t.Fatalf("expect keys: %+v but got: %+v", wkeys, tn.keys)
+	t.Logf("%+v", tr.root.keys)
+	t.Logf("%+v", tr.root.pointers...)
+
+	wkeys := []int{1, 2, 3}
+	if !reflect.DeepEqual(tr.root.keys, wkeys) {
+		t.Fatalf("expect keys: %+v but got: %+v", wkeys, tr.root.keys)
 	}
 
-	wpointers := []interface{}{1, 2, 3, 4, 5, nil}
-	if !reflect.DeepEqual(tn.pointers, wpointers) {
-		t.Fatalf("expect pointers: %+v but got: %+v", wpointers, tn.pointers)
-	}
-}
-
-func TestInsertNonLeaf(t *testing.T) {
-	tn := newTNode(false, 5)
-	tn.insert(4, 4)
-	tn.insert(1, 1)
-	tn.insert(2, 2)
-	tn.insert(5, 5)
-	tn.insert(3, 3)
-	t.Logf("%+v", tn.keys)
-	t.Logf("%+v", tn.pointers)
-
-	wkeys := []int{1, 2, 3, 4, 5}
-	if !reflect.DeepEqual(tn.keys, wkeys) {
-		t.Fatalf("expect keys: %+v but got: %+v", wkeys, tn.keys)
-	}
-
-	wpointers := []interface{}{nil, 1, 2, 3, 4, 5}
-	if !reflect.DeepEqual(tn.pointers, wpointers) {
-		t.Fatalf("expect pointers: %+v but got: %+v", wpointers, tn.pointers)
+	wpointers := []interface{}{1, 2, 3, nil}
+	if !reflect.DeepEqual(tr.root.pointers, wpointers) {
+		t.Fatalf("expect pointers: %+v but got: %+v", wpointers, tr.root.pointers)
 	}
 }
 
@@ -143,7 +121,7 @@ func newTree(t *testing.T, n int, numKeys int, step int) *BPlusTree {
 			t.Fatalf("error inserting key: %d: %+v", i, err)
 		}
 
-		// t.Logf("tree after insert key: %d\n%s", i, tr.String())
+		t.Logf("tree after insert key: %d\n%s", i, tr.String())
 	}
 
 	return tr
@@ -186,7 +164,6 @@ func TestDeleteMergeLeftLeaf(t *testing.T) {
 		t.Fatalf("error deleting key %d: %+v", 3, err)
 	}
 	t.Logf("b tree after deleting key %d:\n%s\n", 3, tr.String())
-	// TODO: check parent pointer
 }
 
 func TestDeleteMergeRightLeaf(t *testing.T) {
@@ -204,7 +181,6 @@ func TestDeleteMergeRightLeaf(t *testing.T) {
 		t.Fatalf("error deleting key %d: %+v", 3, err)
 	}
 	t.Logf("b tree after deleting key %d:\n%s\n", 2, tr.String())
-	// TODO: check parent pointer
 }
 
 func TestDeleteMergeLeftInternalNode(t *testing.T) {
@@ -278,7 +254,6 @@ func TestDeleteInternalNodeBorrowLeft(t *testing.T) {
 		}
 		t.Logf("b tree after deleting %d:\n%s\n", i, tr.String())
 	}
-	// TODO: check parent pointer
 }
 
 func TestDeleteInternalNodeBorrowRight(t *testing.T) {
