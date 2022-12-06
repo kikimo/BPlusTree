@@ -2,9 +2,7 @@
 
 B+ tree in Go.
 
-## Insertion
-
-1. Insert
+## 1. Insertion
 
 ```txt
 === RUN   TestInsertNode
@@ -51,7 +49,7 @@ B+ tree in Go.
           (1,2)    (3,4)    (5,6)    (7,18)    (19)    (20)
 ```
 
-2. Delete
+## 2. Deletion
 
 ```txt
 === RUN   TestDeleteInternalNodeBorrowRight
