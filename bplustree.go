@@ -37,6 +37,7 @@ func (t *BPlusTree) insertInParent(n *tnode, key int, newN *tnode) error {
 		n.parent = newRoot
 		newN.parent = newRoot
 		newRoot.pointers = make([]interface{}, 0, t.n+1)
+		// FIXME: ok to append() here?
 		newRoot.pointers = append(newRoot.pointers, n, newN)
 		newRoot.keys = append(newRoot.keys, key)
 		t.root = newRoot
@@ -154,6 +155,7 @@ func (t *BPlusTree) mergeLeaves(left, right *tnode) bool {
 	}
 
 	left.pointers = left.pointers[:len(left.pointers)-1]
+	// FIXME: ok to append() here?
 	left.pointers = append(left.pointers, right.pointers...)
 	left.keys = append(left.keys, right.keys...)
 
@@ -176,6 +178,7 @@ func (t *BPlusTree) mergeInternalNodes(left *tnode, key int, right *tnode) bool 
 		c.parent = left
 	}
 
+	// FIXME: ok to append() here?
 	left.pointers = append(left.pointers, right.pointers...)
 	left.keys = append(left.keys, key)
 	left.keys = append(left.keys, right.keys...)
@@ -254,7 +257,9 @@ func (t *BPlusTree) leafBorrowFromLeft(left *tnode, key *int, right *tnode) {
 	// expand right first
 	sz = len(right.keys)
 	right.keys = right.keys[:sz+1]
-	copy(right.keys[1:], right.keys[:sz-1])
+	if sz > 0 {
+		copy(right.keys[1:], right.keys[:sz-1])
+	}
 	right.pointers = right.pointers[:sz+2]
 	copy(right.pointers[1:], right.pointers[:sz])
 	right.keys[0] = k
@@ -285,11 +290,51 @@ func (t *BPlusTree) leafBorrowFromRight(left *tnode, key *int, right *tnode) {
 }
 
 func (t *BPlusTree) internalNodeBorrowFromLeft(left *tnode, key *int, right *tnode) {
-	panic("no impl")
+	sz := len(left.keys)
+	k := left.keys[sz-1]
+	p := left.pointers[sz]
+
+	// swap key and k
+	*key, k = k, *key
+
+	// shrink left by one
+	left.keys = left.keys[:sz-1]
+	left.pointers = left.pointers[:sz]
+
+	// prepend entry (k, p) to right
+	// expand right first
+	sz = len(right.keys)
+	right.keys = right.keys[:sz+1]
+	if sz > 0 {
+		copy(right.keys[1:], right.keys[:sz-1])
+	}
+	right.pointers = right.pointers[:sz+2]
+	copy(right.pointers[1:], right.pointers[:sz])
+	right.keys[0] = k
+	right.pointers[0] = p
 }
 
 func (t *BPlusTree) internalNodeBorrowFromRight(left *tnode, key *int, right *tnode) {
-	panic("no impl")
+	sz := len(right.keys)
+	k := right.keys[0]
+	p := right.pointers[0]
+
+	// swap key and k
+	*key, k = k, *key
+
+	// shrink right by one
+	copy(right.keys, right.keys[1:])
+	right.keys = right.keys[:sz-1]
+	copy(right.pointers, right.pointers[1:])
+	right.pointers = right.pointers[:sz]
+
+	// append entry (k, p) to left
+	glog.Infof("left before borrow: %+v", left)
+	sz = len(left.keys)
+	left.keys = left.keys[:sz+1]
+	left.keys[sz] = k
+	left.pointers = left.pointers[:sz+2]
+	left.pointers[sz+1] = p
 }
 
 func (t *BPlusTree) deleteEntry(root *tnode, key int) (bool, error) {
