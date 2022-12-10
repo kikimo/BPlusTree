@@ -10,7 +10,12 @@ var ErrDupKey error = fmt.Errorf("duplicate key")
 var ErrKeyNotFound error = fmt.Errorf("key not found")
 
 type tNode struct {
-	isLeaf  bool
+	isLeaf bool
+	// parent points to parent pointer when should parent pointer
+	// being updated:
+	// 	1. update children's parent pointers when an entry is being
+	//     merged or splited
+	// 	2. update parent pointer when an entry is being inserted
 	parent  *tNode
 	entries []Entry
 }
@@ -68,7 +73,7 @@ func (tn *tNode) insertLeaf(e *Entry) error {
 
 	// check invariant
 	if sz+1 > cap(tn.entries) {
-		glog.Fatalf("leaf entry overflow(maxsize: %d) inserting new entry %+v", cap(tn.entries), e)
+		glog.Fatalf("leaf entry overflow(maxsize: %d) inserting new entry: %+v", cap(tn.entries), e)
 	}
 
 	pos := tn.findLeafInsertPos(e.key)
@@ -108,7 +113,7 @@ func (tn *tNode) splitInternalNode() *Entry {
 }
 
 func (tn *tNode) splitLeafNode() *Entry {
-	glog.V(2).Infof("spliting leaf node: %+v", tn)
+	glog.V(2).Infof("spliting leaf node: %s", tn.ChildrenStr())
 	sz := len(tn.entries)
 	// 4 -> 2
 	// 5 -> 2
@@ -124,7 +129,7 @@ func (tn *tNode) splitLeafNode() *Entry {
 	// connect to sibling
 	tn.entries[pos] = Entry{pointer: newN}
 
-	glog.V(2).Infof("new entry after split leaf: %+v", newN)
+	glog.V(2).Infof("new entry after split leaf: %s", newN.ChildrenStr())
 	return &Entry{key: newN.entries[0].key, pointer: newN}
 }
 
@@ -136,7 +141,7 @@ func (tn *tNode) mergeNodes(key int, right *tNode) bool {
 		return tn.mergeInternalNodes(key, right)
 	}
 
-	glog.Fatalf("merge leaf to internal node: %+v, %+v", tn, right)
+	glog.Fatalf("merge leaf to internal node: %s, %s", tn.ChildrenStr(), right.ChildrenStr())
 	panic("unreachable")
 }
 
@@ -148,7 +153,7 @@ func (tn *tNode) mergeLeaves(right *tNode) bool {
 		return false
 	}
 
-	glog.V(2).Infof("merge internal node, left: %+v, right: %+v", tn.entries, right.entries)
+	glog.V(2).Infof("merge internal node, left: %s, right: %s", tn.ChildrenStr(), right.ChildrenStr())
 	start := len(tn.entries) - 1
 	tn.entries = tn.entries[:sz]
 	for i := range right.entries {
@@ -158,6 +163,7 @@ func (tn *tNode) mergeLeaves(right *tNode) bool {
 	return true
 }
 
+// mergeInternalNodes mrege children of right into tn
 func (tn *tNode) mergeInternalNodes(key int, right *tNode) bool {
 	sz := len(tn.entries) + len(right.entries)
 
@@ -166,7 +172,13 @@ func (tn *tNode) mergeInternalNodes(key int, right *tNode) bool {
 		return false
 	}
 
-	glog.V(2).Infof("merge internal node, left: %+v, key: %d, right: %+v", tn.entries, key, right.entries)
+	glog.V(2).Infof("merge %s into %s", right.ChildrenStr(), tn.ChildrenStr())
+	// update parent of right children
+	for _, e := range right.entries {
+		c := e.pointer.(*tNode)
+		c.parent = tn
+	}
+
 	right.entries[0].key = key
 	start := len(tn.entries)
 	tn.entries = tn.entries[:sz]
@@ -221,7 +233,7 @@ func borrowFromLeft(left *tNode, key *int, right *tNode) {
 		return
 	}
 
-	glog.Fatalf("leaf cannot borrow from internal node(vice vesa), left: %+v, right: %+v", left, right)
+	glog.Fatalf("leaf cannot borrow from internal node(vice vesa), left: %s, right: %s", left.ChildrenStr(), right.ChildrenStr())
 	panic("unreachable")
 }
 
@@ -236,7 +248,7 @@ func borrowFromRight(left *tNode, key *int, right *tNode) {
 		return
 	}
 
-	glog.Fatalf("leaf cannot borrow from internal node(vice vesa), left: %+v, right: %+v", left, right)
+	glog.Fatalf("leaf cannot borrow from internal node(vice vesa), left: %s, right: %s", left.ChildrenStr(), right.ChildrenStr())
 	panic("unreachable")
 }
 
@@ -277,6 +289,7 @@ func leafBorrowFromRight(left *tNode, key *int, right *tNode) {
 }
 
 func internalBorrowFromLeft(left *tNode, key *int, right *tNode) {
+	glog.V(2).Infof("borrow one key from left %s to right %s", left.ChildrenStr(), right.ChildrenStr())
 	sz := len(left.entries)
 	e := left.entries[sz-1]
 
@@ -287,6 +300,9 @@ func internalBorrowFromLeft(left *tNode, key *int, right *tNode) {
 	// shrink left by one
 	left.entries = left.entries[:sz-1]
 
+	// // update children
+	e.pointer.(*tNode).parent = right
+
 	// prepend entry (k, p) to right
 	// expand right first
 	sz = len(right.entries)
@@ -296,12 +312,16 @@ func internalBorrowFromLeft(left *tNode, key *int, right *tNode) {
 }
 
 func internalBorrowFromRight(left *tNode, key *int, right *tNode) {
+	glog.V(2).Infof("borrow one key from right %s to left %s", right.ChildrenStr(), left.ChildrenStr())
 	sz := len(right.entries)
 	e := right.entries[0]
 	e.key = right.entries[1].key
 
 	// swap key and e.key
 	*key, e.key = e.key, *key
+
+	// // update children
+	e.pointer.(*tNode).parent = left
 
 	// shrink right by one
 	copy(right.entries[:sz-1], right.entries[1:])

@@ -37,18 +37,18 @@ func (tr *BPlusTree) Insert(e *Entry) error {
 func (tr *BPlusTree) doInsert(root *tNode, e *Entry) (*Entry, error) {
 	// insert leaf node
 	if root.isLeaf {
-		glog.V(2).Infof("entries size: %d, cap: %d, entries: %+v", len(root.entries), cap(root.entries), root.entries)
+		glog.V(2).Infof("entries size: %d, cap: %d, entries: %+v", len(root.entries), cap(root.entries), root.ChildrenStr())
 		if err := root.insertLeaf(e); err != nil {
 			return nil, err
 		}
 
-		glog.V(2).Infof("entries size: %d, cap: %d, entries: %+v", len(root.entries), cap(root.entries), root.entries)
+		glog.V(2).Infof("entries size: %d, cap: %d, entries: %+v", len(root.entries), cap(root.entries), root.ChildrenStr())
 		if len(root.entries) < cap(root.entries) {
 			return nil, nil
 		}
 
 		ne := root.splitLeafNode()
-		glog.V(2).Infof("entries size: %d, cap: %d, entries: %+v", len(root.entries), cap(root.entries), root.entries)
+		glog.V(2).Infof("entries size: %d, cap: %d, entries: %+v", len(root.entries), cap(root.entries), root.ChildrenStr())
 		glog.V(2).Infof("ne: %+v", *ne)
 		return ne, nil
 	}
@@ -72,7 +72,7 @@ func (tr *BPlusTree) doInsert(root *tNode, e *Entry) (*Entry, error) {
 
 	// invariant check
 	if len(root.entries) >= cap(root.entries) {
-		glog.Errorf("cap entries: %d, size entries: %d, entries: %+v", cap(root.entries), len(root.entries), root.entries)
+		glog.Errorf("cap entries: %d, size entries: %d, entries: %+v", cap(root.entries), len(root.entries), root.ChildrenStr())
 		glog.Fatalf("illegal node entry size:\n %+v", root)
 	}
 
@@ -124,7 +124,7 @@ func (t *BPlusTree) deleteEntry(root *tNode, key int) (bool, error) {
 		return false, err
 	}
 
-	glog.Infof("child entries after deletion: %+v", child.entries)
+	glog.Infof("children after deletion: %+v", child.ChildrenStr())
 	if !child.tooFewPointers() {
 		return false, nil
 	}
@@ -133,7 +133,7 @@ func (t *BPlusTree) deleteEntry(root *tNode, key int) (bool, error) {
 	if pos-1 >= 0 {
 		left := root.entries[pos-1].pointer.(*tNode)
 		if left.mergeNodes(de.key, child) {
-			glog.Infof("deleting entry at %d from %+v", pos, root.entries)
+			glog.Infof("deleting entry at %d from %+v", pos, root.ChildrenStr())
 			root.deleteEntryAt(pos)
 			return true, nil
 		}
@@ -142,7 +142,7 @@ func (t *BPlusTree) deleteEntry(root *tNode, key int) (bool, error) {
 	if pos+1 < len(root.entries) {
 		right := root.entries[pos+1].pointer.(*tNode)
 		if child.mergeNodes(root.entries[pos+1].key, right) {
-			glog.Infof("deleting entry at %d from %+v", pos+1, root.entries)
+			glog.Infof("deleting entry at %d from %+v", pos+1, root.ChildrenStr())
 			root.deleteEntryAt(pos + 1)
 			return true, nil
 		}

@@ -6,15 +6,15 @@ import (
 	"strings"
 )
 
-func (tr *BPlusTree) String() string {
+func (tr *BPlusTree) ToString() string {
 	if tr.root != nil && len(tr.root.entries) > 1 {
-		return tr.root.String()
+		return tr.root.ToString()
 	}
 
 	return "()"
 }
 
-func (tn *tNode) String() string {
+func (tn *tNode) ToString() string {
 	buf := bytes.NewBuffer(nil)
 	root := traverseTree(tn)
 	printTree(root, buf)
@@ -28,16 +28,35 @@ type pnode struct {
 	children []*pnode
 }
 
-func traverseTree(root *tNode) *pnode {
-	keys := make([]string, 0, len(root.entries)-1)
-	for i, k := range root.entries {
-		if (root.isLeaf && i == len(root.entries)-1) || (!root.isLeaf && i == 0) {
+func (tn *tNode) ChildrenStr() string {
+	if tn == nil {
+		return "()"
+	}
+
+	keys := make([]string, 0, len(tn.entries)-1)
+	for i, k := range tn.entries {
+		if (tn.isLeaf && i == len(tn.entries)-1) || (!tn.isLeaf && i == 0) {
 			continue
 		}
 
 		keys = append(keys, strconv.Itoa(k.key))
 	}
+
 	val := "(" + strings.Join(keys, ",") + ")"
+	return val
+}
+
+func traverseTree(root *tNode) *pnode {
+	// keys := make([]string, 0, len(root.entries)-1)
+	// for i, k := range root.entries {
+	// 	if (root.isLeaf && i == len(root.entries)-1) || (!root.isLeaf && i == 0) {
+	// 		continue
+	// 	}
+
+	// 	keys = append(keys, strconv.Itoa(k.key))
+	// }
+	// val := "(" + strings.Join(keys, ",") + ")"
+	val := root.ChildrenStr()
 	proot := &pnode{val: val}
 
 	if !root.isLeaf {

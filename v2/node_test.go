@@ -39,7 +39,7 @@ func TestLeafInsert(t *testing.T) {
 	}
 
 	// leaf.insertLeaf(&Entry{key: 6, pointer: 6})
-	t.Logf("leaft after insert: %s", leaf.String())
+	t.Logf("leaft after insert: %s", leaf.ToString())
 }
 
 func TestSplitLeafNodeEven(t *testing.T) {
@@ -47,11 +47,11 @@ func TestSplitLeafNodeEven(t *testing.T) {
 	for i := 4; i >= 1; i-- {
 		leaf.insertLeaf(&Entry{key: i, pointer: i})
 	}
-	t.Logf("leaf before split: %+v", leaf.String())
+	t.Logf("leaf before split: %+v", leaf.ToString())
 
 	ne := leaf.splitLeafNode()
 	right := ne.pointer.(*tNode)
-	t.Logf("after split, left: %s, right: %s", leaf.String(), right.String())
+	t.Logf("after split, left: %s, right: %s", leaf.ToString(), right.ToString())
 
 	lsz, rsz := len(leaf.entries), len(right.entries)
 	if lsz != 3 || rsz != 3 {
@@ -68,11 +68,11 @@ func TestSplitLeafNodeOdd(t *testing.T) {
 	for i := 5; i >= 1; i-- {
 		leaf.insertLeaf(&Entry{key: i, pointer: i})
 	}
-	t.Logf("leaf before split:\n%+v", leaf.String())
+	t.Logf("leaf before split:\n%+v", leaf.ToString())
 
 	ne := leaf.splitLeafNode()
 	right := ne.pointer.(*tNode)
-	t.Logf("after split:\nleft:\n%s\nright:\n%s", leaf.String(), right.String())
+	t.Logf("after split:\nleft:\n%s\nright:\n%s", leaf.ToString(), right.ToString())
 
 	lsz, rsz := len(leaf.entries), len(right.entries)
 	if lsz != 4 || rsz != 3 {
@@ -174,7 +174,8 @@ func TestMergeInternalNode(t *testing.T) {
 	left.insertAt(2, &Entry{key: 2, pointer: 2})
 
 	right := newTNode(false, 4)
-	right.insertAt(0, &Entry{key: 0, pointer: 3})
+	rightChild := newTNode(true, 4)
+	right.insertAt(0, &Entry{key: 0, pointer: rightChild})
 	if !left.mergeInternalNodes(3, right) {
 		t.Fatalf("expect internal node merged but not")
 	}
@@ -183,7 +184,7 @@ func TestMergeInternalNode(t *testing.T) {
 		{0, nil},
 		{1, 1},
 		{2, 2},
-		{3, 3},
+		{3, rightChild},
 	}
 
 	if !reflect.DeepEqual(wentries, left.entries) {
