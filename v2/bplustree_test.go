@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-func newTree(t *testing.T, n int, numKeys int, step int) *BPlusTree {
-	tr, _ := NewTree(n)
+func newTree(t *testing.T, maxEntrySize int, numKeys int, step int) *BPlusTree {
+	tr, _ := NewTree(maxEntrySize)
 	for i := 1; i <= numKeys; i++ {
 		key := (i-1)*step + 1
 		if err := tr.Insert(&Entry{key: key, pointer: key}); err != nil {
@@ -389,6 +389,24 @@ func TestBTreeUpdateParent(t *testing.T) {
 
 		if err := checkBPlusTreeInvariant(tr); err != nil {
 			t.Fatalf("b tree invariant check failed: %+v", err)
+		}
+	}
+}
+
+func TestBTreeFind(t *testing.T) {
+	numkeys := 10
+	// newTree(t, 4, numkeys, 2)
+	tr := newTree(t, 4, numkeys, 2)
+	for i := 1; i < 20; i++ {
+		v, err := tr.Find(i)
+		if i%2 == 0 {
+			if err != ErrKeyNotFound {
+				t.Fatalf("expect error %+v but got %+v", ErrKeyNotFound, err)
+			}
+		} else {
+			if !reflect.DeepEqual(v, i) {
+				t.Fatalf("expect val %d but got %+v", i, v)
+			}
 		}
 	}
 }

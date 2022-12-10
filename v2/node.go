@@ -52,10 +52,12 @@ func (tn *tNode) findInsertPos(key int, s, e int) int {
 	return s
 }
 
+// findInsertPos find smallest index such that tn.entries[index].key >= key
 func (tn *tNode) findLeafInsertPos(key int) int {
 	return tn.findInsertPos(key, 0, len(tn.entries)-1)
 }
 
+// findInsertPos find smallest index such that tn.entries[index].key >= key
 func (tn *tNode) findInternalInsertPos(key int) int {
 	return tn.findInsertPos(key, 1, len(tn.entries))
 }

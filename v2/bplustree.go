@@ -11,6 +11,26 @@ type BPlusTree struct {
 	root    *tNode
 }
 
+func (tr *BPlusTree) Find(key int) (interface{}, error) {
+	tn := tr.root
+
+	for !tn.isLeaf {
+		pos := tn.findInternalInsertPos(key)
+		if pos >= len(tn.entries) || tn.entries[pos].key > key {
+			pos -= 1
+		}
+
+		tn = tn.entries[pos].pointer.(*tNode)
+	}
+
+	pos := tn.findLeafInsertPos(key)
+	if pos >= len(tn.entries) || tn.entries[pos].key != key {
+		return nil, ErrKeyNotFound
+	}
+
+	return tn.entries[pos].pointer, nil
+}
+
 func (tr *BPlusTree) Insert(e *Entry) error {
 	ne, err := tr.doInsert(tr.root, e)
 	if err != nil {

@@ -47,15 +47,6 @@ func (tn *tNode) ChildrenStr() string {
 }
 
 func traverseTree(root *tNode) *pnode {
-	// keys := make([]string, 0, len(root.entries)-1)
-	// for i, k := range root.entries {
-	// 	if (root.isLeaf && i == len(root.entries)-1) || (!root.isLeaf && i == 0) {
-	// 		continue
-	// 	}
-
-	// 	keys = append(keys, strconv.Itoa(k.key))
-	// }
-	// val := "(" + strings.Join(keys, ",") + ")"
 	val := root.ChildrenStr()
 	proot := &pnode{val: val}
 
