@@ -20,6 +20,16 @@ func newTree(t *testing.T, n int, numKeys int, step int) *BPlusTree {
 	return tr
 }
 
+func TestBTreeNewTree(t *testing.T) {
+	if _, err := NewTree(2); err == nil {
+		t.Fatalf("expect error but got none")
+	}
+
+	if _, err := NewTree(3); err != nil {
+		t.Fatalf("expect no error but got: %+v", err)
+	}
+}
+
 func TestBTreeInsertLeaf(t *testing.T) {
 	tr := newTree(t, 4, 0, 0)
 	tr.Insert(&Entry{2, 2})
@@ -39,6 +49,7 @@ func TestBTreeInsertLeaf(t *testing.T) {
 	}
 }
 
+// TODO: SplitInternalRoot
 func TestBTreeSplitLeafRoot(t *testing.T) {
 	tr, _ := NewTree(6)
 	tr.Insert(&Entry{4, 4})
@@ -130,16 +141,6 @@ func TestBTreeInsertDuplicate(t *testing.T) {
 	}
 }
 
-func TestBTreeNewTree(t *testing.T) {
-	if _, err := NewTree(2); err == nil {
-		t.Fatalf("expect error but got none")
-	}
-
-	if _, err := NewTree(3); err != nil {
-		t.Fatalf("expect no error but got: %+v", err)
-	}
-}
-
 func TestBTreeDeleteKeyNoExist(t *testing.T) {
 	numKeys := 3
 	tr := newTree(t, 4, numKeys, 1)
@@ -193,7 +194,7 @@ func TestBTreeDeleteMergeRightLeaf(t *testing.T) {
 	t.Logf("b tree after deleting key %d:\n%s\n", 2, tr.String())
 }
 
-func TestBTreeDeleteMergeLeftInternalNode(t *testing.T) {
+func TestBTreeDeleteMergeLeftInternal(t *testing.T) {
 	numKeys := 12
 	tr := newTree(t, 4, numKeys, 1)
 
@@ -205,7 +206,7 @@ func TestBTreeDeleteMergeLeftInternalNode(t *testing.T) {
 	}
 }
 
-func TestBTreeDeleteMergeRightInternalNode(t *testing.T) {
+func TestBTreeDeleteMergeRightInternal(t *testing.T) {
 	numKeys := 12
 	tr := newTree(t, 4, numKeys, 1)
 
@@ -217,60 +218,65 @@ func TestBTreeDeleteMergeRightInternalNode(t *testing.T) {
 	}
 }
 
-// func TestDeleteLeafBorrwoLeft(t *testing.T) {
-// 	numKeys := 1
-// 	tr := newTree(t, 4, numKeys, 1)
-// 	tr.Insert(8, 8)
-// 	tr.Insert(4, 4)
-// 	tr.Insert(9, 9)
-// 	tr.Insert(5, 5)
-// 	t.Logf("b tree:\n%s\n", tr.String())
+func TestBTreeDeleteBorrowLeftLeaf(t *testing.T) {
+	numKeys := 1
+	tr := newTree(t, 4, numKeys, 1)
+	tr.Insert(&Entry{key: 8, pointer: 8})
+	tr.Insert(&Entry{key: 4, pointer: 4})
+	tr.Insert(&Entry{key: 9, pointer: 9})
+	tr.Insert(&Entry{key: 5, pointer: 5})
+	t.Logf("b tree:\n%s", tr.String())
 
-// 	if err := tr.Delete(8); err != nil {
-// 		t.Fatalf("error deleting key %d: %+v", 8, err)
-// 	}
-// 	t.Logf("b tree after deleting 8:\n%s\n", tr.String())
-// 	// TODO: check parent pointer
-// }
+	if err := tr.Delete(8); err != nil {
+		t.Fatalf("error deleting key %d: %+v", 8, err)
+	}
+	t.Logf("b tree after deleting 8:\n%s\n", tr.String())
+}
 
-// func TestDeleteLeafBorrwoRight(t *testing.T) {
-// 	numKeys := 1
-// 	tr := newTree(t, 4, numKeys, 1)
-// 	tr.Insert(7, 7)
-// 	tr.Insert(4, 4)
-// 	tr.Insert(9, 9)
-// 	tr.Insert(8, 8)
-// 	t.Logf("b tree:\n%s\n", tr.String())
+func TestBTreeDeleteBorrwoRightLeaf(t *testing.T) {
+	numKeys := 1
+	tr := newTree(t, 4, numKeys, 1)
+	tr.Insert(&Entry{7, 7})
+	tr.Insert(&Entry{4, 4})
+	tr.Insert(&Entry{9, 9})
+	tr.Insert(&Entry{8, 8})
+	t.Logf("b tree:\n%s\n", tr.String())
 
-// 	if err := tr.Delete(4); err != nil {
-// 		t.Fatalf("error deleting key %d: %+v", 4, err)
-// 	}
-// 	t.Logf("b tree after deleting 4:\n%s\n", tr.String())
-// 	// TODO: check parent pointer
-// }
+	if err := tr.Delete(4); err != nil {
+		t.Fatalf("error deleting key %d: %+v", 4, err)
+	}
+	t.Logf("b tree after deleting 4:\n%s\n", tr.String())
+}
 
-// func TestDeleteInternalNodeBorrowLeft(t *testing.T) {
-// 	numKeys := 14
-// 	tr := newTree(t, 4, numKeys, 1)
-// 	t.Logf("b tree:\n%s\n", tr.String())
+func TestBTreeDeleteBorrowRightInternal(t *testing.T) {
+	numKeys := 14
+	tr := newTree(t, 4, numKeys, 1)
 
-// 	for i := 1; i < 4; i++ {
-// 		if err := tr.Delete(i); err != nil {
-// 			t.Fatalf("error deleting key %d: %+v", i, err)
-// 		}
-// 		t.Logf("b tree after deleting %d:\n%s\n", i, tr.String())
-// 	}
-// }
+	for i := 1; i < 4; i++ {
+		if err := tr.Delete(i); err != nil {
+			t.Fatalf("error deleting key %d: %+v", i, err)
+		}
+		t.Logf("b tree after deleting %d:\n%s\n", i, tr.String())
+	}
 
-// func TestDeleteInternalNodeBorrowRight(t *testing.T) {
-// 	numKeys := 10
-// 	tr := newTree(t, 4, numKeys, 3)
-// 	tr.Insert(11, 11)
-// 	tr.Insert(12, 12)
-// 	t.Logf("b tree:\n%s\n", tr.String())
+	if tr.root.entries[1].key != 9 {
+		t.Fatalf("exptect root first key 9 but got %d", tr.root.entries[1].key)
+	}
+}
 
-// 	if err := tr.Delete(19); err != nil {
-// 		t.Fatalf("error deleting key %d: %+v", 19, err)
-// 	}
-// 	t.Logf("b tree after deleting key 19:\n%s\n", tr.String())
-// }
+func TestBTreeDeleteBorrowLeftInternal(t *testing.T) {
+	numKeys := 10
+	tr := newTree(t, 4, numKeys, 3)
+	tr.Insert(&Entry{11, 11})
+	tr.Insert(&Entry{12, 12})
+	t.Logf("b tree:\n%s\n", tr.String())
+
+	if err := tr.Delete(19); err != nil {
+		t.Fatalf("error deleting key %d: %+v", 19, err)
+	}
+	t.Logf("b tree after deleting key 19:\n%s\n", tr.String())
+	c2 := tr.root.entries[1].pointer.(*tNode)
+	if c2.entries[1].key != 19 {
+		t.Fatalf("expect first key 19 after borrowing from left but got %d", c2.entries[1].key)
+	}
+}

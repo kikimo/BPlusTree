@@ -144,7 +144,7 @@ func (tn *tNode) mergeLeaves(right *tNode) bool {
 	sz := len(tn.entries) + len(right.entries) - 1
 
 	// unable to merge
-	if sz > cap(tn.entries) {
+	if sz > cap(tn.entries)-1 {
 		return false
 	}
 
@@ -162,7 +162,7 @@ func (tn *tNode) mergeInternalNodes(key int, right *tNode) bool {
 	sz := len(tn.entries) + len(right.entries)
 
 	// unable to merge
-	if sz > cap(tn.entries) {
+	if sz > cap(tn.entries)-1 {
 		return false
 	}
 
@@ -208,4 +208,108 @@ func (tn *tNode) tooFewPointers() bool {
 	}
 
 	return len(tn.entries) < cap(tn.entries)/2
+}
+
+func borrowFromLeft(left *tNode, key *int, right *tNode) {
+	if left.isLeaf && right.isLeaf {
+		leafBorrowFromLeft(left, key, right)
+		return
+	}
+
+	if !left.isLeaf && !right.isLeaf {
+		internalBorrowFromLeft(left, key, right)
+		return
+	}
+
+	glog.Fatalf("leaf cannot borrow from internal node(vice vesa), left: %+v, right: %+v", left, right)
+	panic("unreachable")
+}
+
+func borrowFromRight(left *tNode, key *int, right *tNode) {
+	if left.isLeaf && right.isLeaf {
+		leafBorrowFromRight(left, key, right)
+		return
+	}
+
+	if !left.isLeaf && !right.isLeaf {
+		internalBorrowFromRight(left, key, right)
+		return
+	}
+
+	glog.Fatalf("leaf cannot borrow from internal node(vice vesa), left: %+v, right: %+v", left, right)
+	panic("unreachable")
+}
+
+func leafBorrowFromLeft(left *tNode, key *int, right *tNode) {
+	sz := len(left.entries)
+	e := left.entries[sz-2]
+
+	// shrink left by one
+	left.entries[sz-2] = left.entries[sz-1]
+	left.entries = left.entries[:sz-1]
+
+	*key = e.key
+
+	// prepend entry e to right
+	// expand right first
+	sz = len(right.entries)
+	right.entries = right.entries[:sz+1]
+	copy(right.entries[1:], right.entries[:sz-1])
+	right.entries[0] = e
+}
+
+func leafBorrowFromRight(left *tNode, key *int, right *tNode) {
+	sz := len(right.entries)
+	e := right.entries[0]
+
+	// shrink right by one
+	copy(right.entries[:sz-1], right.entries[1:])
+	right.entries = right.entries[:sz-1]
+
+	*key = e.key
+
+	// append entry (k, p) to left
+	// expand left first
+	sz = len(left.entries)
+	left.entries = left.entries[:sz+1]
+	left.entries[sz] = left.entries[sz-1]
+	left.entries[sz-1] = e
+}
+
+func internalBorrowFromLeft(left *tNode, key *int, right *tNode) {
+	sz := len(left.entries)
+	e := left.entries[sz-1]
+
+	// swap key and e.key
+	*key, right.entries[0].key = e.key, *key
+	e.key = 0
+
+	// shrink left by one
+	left.entries = left.entries[:sz-1]
+
+	// prepend entry (k, p) to right
+	// expand right first
+	sz = len(right.entries)
+	right.entries = right.entries[:sz+1]
+	copy(right.entries[1:], right.entries[:sz])
+	right.entries[0] = e
+}
+
+func internalBorrowFromRight(left *tNode, key *int, right *tNode) {
+	sz := len(right.entries)
+	e := right.entries[0]
+	e.key = right.entries[1].key
+
+	// swap key and e.key
+	*key, e.key = e.key, *key
+
+	// shrink right by one
+	copy(right.entries[:sz-1], right.entries[1:])
+	right.entries = right.entries[:sz-1]
+	right.entries[0].key = 0
+
+	// append entry (k, p) to left
+	sz = len(left.entries)
+	left.entries = left.entries[:sz+1]
+	left.entries[sz] = e
 }

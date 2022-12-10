@@ -145,7 +145,7 @@ func TestMergeLeafNodes(t *testing.T) {
 
 	right := newTNode(true, 4)
 	right.insertLeaf(&Entry{key: 3, pointer: 3})
-	if ok := left.mergeLeaves(right); !ok {
+	if !left.mergeLeaves(right) {
 		t.Fatalf("expect leaves merged but not")
 	}
 
@@ -159,6 +159,12 @@ func TestMergeLeafNodes(t *testing.T) {
 	if !reflect.DeepEqual(wentries, left.entries) {
 		t.Fatalf("expect entries %+v but got %+v", wentries, left.entries)
 	}
+
+	right = newTNode(true, 4)
+	right.insertLeaf(&Entry{key: 4, pointer: 4})
+	if left.mergeLeaves(right) {
+		t.Fatalf("should no be able to merge leaves(too many pointers)")
+	}
 }
 
 func TestMergeInternalNode(t *testing.T) {
@@ -169,7 +175,7 @@ func TestMergeInternalNode(t *testing.T) {
 
 	right := newTNode(false, 4)
 	right.insertAt(0, &Entry{key: 0, pointer: 3})
-	if ok := left.mergeInternalNodes(3, right); !ok {
+	if !left.mergeInternalNodes(3, right) {
 		t.Fatalf("expect internal node merged but not")
 	}
 
@@ -182,6 +188,12 @@ func TestMergeInternalNode(t *testing.T) {
 
 	if !reflect.DeepEqual(wentries, left.entries) {
 		t.Fatalf("expect entries %+v but got %+v", wentries, left.entries)
+	}
+
+	right = newTNode(false, 4)
+	right.insertAt(0, &Entry{key: 0, pointer: 4})
+	if left.mergeInternalNodes(4, right) {
+		t.Fatalf("should no be able to merge internal nodes(too many pointers)")
 	}
 }
 

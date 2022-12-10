@@ -111,6 +111,7 @@ func (t *BPlusTree) deleteEntry(root *tNode, key int) (bool, error) {
 		return true, root.deleteEntry(key)
 	}
 
+	// pos points to index into which key will be inserted
 	pos := root.findInternalInsertPos(key)
 	if pos >= len(root.entries) || root.entries[pos].key > key {
 		pos -= 1
@@ -147,18 +148,18 @@ func (t *BPlusTree) deleteEntry(root *tNode, key int) (bool, error) {
 		}
 	}
 
-	// // now try redistribute entries
-	// if pos-1 >= 0 {
-	// 	t.borrowFromLeft(root.pointers[pos-1].(*tnode), &root.keys[pos-1], child)
-	// 	return false, nil
-	// }
+	// now try redistribute entries
+	if pos-1 >= 0 {
+		borrowFromLeft(root.entries[pos-1].pointer.(*tNode), &root.entries[pos].key, child)
+		return false, nil
+	}
 
-	// if pos+1 < len(root.pointers) {
-	// 	t.borrowFromRight(child, &root.keys[pos], root.pointers[pos+1].(*tnode))
-	// 	return false, nil
-	// }
+	if pos+1 < len(root.entries) {
+		borrowFromRight(child, &root.entries[pos+1].key, root.entries[pos+1].pointer.(*tNode))
+		return false, nil
+	}
 
-	glog.Fatalf("unable to delete key %d from %+v", key, root)
+	glog.Fatalf("unable to delete key %d from %+v", key, root.entries)
 	panic("unreachable")
 }
 
