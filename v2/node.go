@@ -11,7 +11,7 @@ var ErrKeyNotFound error = fmt.Errorf("key not found")
 
 type tNode struct {
 	isLeaf bool
-	// parent points to parent pointer when should parent pointer
+	// parent points to parent pointer. When should parent pointer
 	// being updated:
 	// 	1. update children's parent pointers when an entry is being
 	//     merged or splited
