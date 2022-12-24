@@ -2,16 +2,19 @@ package v2
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/golang/glog"
 )
 
 func newTree(t *testing.T, maxEntrySize int, numKeys int, step int) *BPlusTree {
 	tr, _ := NewTree(maxEntrySize)
 	for i := 1; i <= numKeys; i++ {
 		key := (i-1)*step + 1
-		if err := tr.Insert(&Entry{key: key, pointer: key}); err != nil {
+		if err := tr.Insert(&Entry{key: int64(key), pointer: key}); err != nil {
 			t.Fatalf("error inserting key: %d: %+v", i, err)
 		}
 
@@ -100,7 +103,7 @@ func TestBTreeSplitInternalNode(t *testing.T) {
 	keys := []int{3, 1, 2, 4, 5, 6, 7}
 
 	for _, key := range keys {
-		if err := tr.Insert(&Entry{key: key, pointer: key}); err != nil {
+		if err := tr.Insert(&Entry{key: int64(key), pointer: key}); err != nil {
 			t.Fatalf("error inserting key %d: %+v", key, err)
 		}
 		t.Logf("tree after insert key: %d\n%s\n", key, tr.ToString())
@@ -128,7 +131,7 @@ func TestBTreeInsertNode(t *testing.T) {
 	keys := []int{3, 1, 2, 4, 5, 6, 7, 20, 18, 19, 13, 10, 12, 11, 17, 16, 14, 15, 9, 8}
 
 	for _, key := range keys {
-		if err := tr.Insert(&Entry{key: key, pointer: key}); err != nil {
+		if err := tr.Insert(&Entry{key: int64(key), pointer: key}); err != nil {
 			t.Fatalf("error inserting key %d: %+v", key, err)
 		}
 		t.Logf("tree after insert key: %d\n%s\n", key, tr.ToString())
@@ -155,7 +158,7 @@ func TestBTreeDeleteRootLeaf(t *testing.T) {
 	numKeys := 3
 	tr := newTree(t, 4, numKeys, 1)
 	for i := 1; i <= numKeys; i += 1 {
-		if err := tr.Delete(i); err != nil {
+		if err := tr.Delete(int64(i)); err != nil {
 			t.Fatalf("error deleting key %d: %+v", i, err)
 		}
 
@@ -200,7 +203,7 @@ func TestBTreeDeleteMergeLeftInternal(t *testing.T) {
 	tr := newTree(t, 4, numKeys, 1)
 
 	for i := 12; i > 9; i-- {
-		if err := tr.Delete(i); err != nil {
+		if err := tr.Delete(int64(i)); err != nil {
 			t.Fatalf("error deleting key %d: %+v", i, err)
 		}
 		t.Logf("b tree after deleting key %d:\n%s\n", i, tr.ToString())
@@ -212,7 +215,7 @@ func TestBTreeDeleteMergeRightInternal(t *testing.T) {
 	tr := newTree(t, 4, numKeys, 1)
 
 	for i := 6; i > 3; i-- {
-		if err := tr.Delete(i); err != nil {
+		if err := tr.Delete(int64(i)); err != nil {
 			t.Fatalf("error deleting key %d: %+v", i, err)
 		}
 		t.Logf("b tree after deleting key %d:\n%s\n", i, tr.ToString())
@@ -254,7 +257,7 @@ func TestBTreeDeleteBorrowRightInternal(t *testing.T) {
 	tr := newTree(t, 4, numKeys, 1)
 
 	for i := 1; i < 4; i++ {
-		if err := tr.Delete(i); err != nil {
+		if err := tr.Delete(int64(i)); err != nil {
 			t.Fatalf("error deleting key %d: %+v", i, err)
 		}
 		t.Logf("b tree after deleting %d:\n%s\n", i, tr.ToString())
@@ -282,7 +285,9 @@ func TestBTreeDeleteBorrowLeftInternal(t *testing.T) {
 	}
 }
 
-func doCheckBPlusTreeInvariant(parent *tNode, tn *tNode) error {
+func doCheckBPlusTreeInvariant(parent *tNode, tn *tNode, min int64, max int64) error {
+	glog.Infof("checking range [%d, %d]", min, max)
+
 	// 1. check parent pointer
 	if parent != tn.parent {
 		return fmt.Errorf("expect parent of %v to be %+v but got: %+v", tn.ChildrenStr(), parent.ChildrenStr(), tn.parent.ChildrenStr())
@@ -297,23 +302,59 @@ func doCheckBPlusTreeInvariant(parent *tNode, tn *tNode) error {
 		return fmt.Errorf("max entry size %d, too few entrys: %d", cap(tn.entries)-1, tn.entries)
 	}
 
-	// 3. check value invariant
-	// TODO
-
 	if !tn.isLeaf {
-		for _, e := range tn.entries {
+		for i, e := range tn.entries {
+			var cmin int64 = e.key
+			var cmax int64 = max
+
+			if i == 0 {
+				cmin = min
+			}
+
+			if i < len(tn.entries)-1 {
+				cmax = tn.entries[i+1].key
+			}
+
 			child := e.pointer.(*tNode)
-			if err := doCheckBPlusTreeInvariant(tn, child); err != nil {
+			if err := doCheckBPlusTreeInvariant(tn, child, cmin, cmax); err != nil {
 				return err
 			}
 		}
+	}
+
+	// check value range
+	values := []int64{}
+	if !tn.isLeaf {
+		for _, e := range tn.entries[1:] {
+			values = append(values, e.key)
+		}
+	} else {
+		for _, e := range tn.entries[:len(tn.entries)-1] {
+			values = append(values, e.key)
+		}
+	}
+
+	for i := 1; i < len(values); i++ {
+		if values[i] <= values[i-1] {
+			return fmt.Errorf("illegal value sequence %+v: (value[%d] = %d) <= (value[%d] = %d)",
+				values, i, values[i], i-1, values[i-1])
+		}
+	}
+
+	// check value range
+	if min > values[0] {
+		return fmt.Errorf("expect keys %+v in range [%d, %d] but found key %d", values, min, max, values[0])
+	}
+
+	if values[len(values)-1] > max {
+		return fmt.Errorf("expect keys %+v in range [%d, %d] but found key %d", values, min, max, values[len(values)-1])
 	}
 
 	return nil
 }
 
 func checkBPlusTreeInvariant(tr *BPlusTree) error {
-	return doCheckBPlusTreeInvariant(nil, tr.root)
+	return doCheckBPlusTreeInvariant(nil, tr.root, math.MinInt64, math.MaxInt64)
 }
 
 func TestBTreeUpdateParent(t *testing.T) {
@@ -373,7 +414,7 @@ func TestBTreeUpdateParent(t *testing.T) {
 		tr := newTree(t, tc.maxEntries, tc.numKeys, tc.step)
 
 		for _, key := range tc.extraKeys {
-			if err := tr.Insert(&Entry{key, key}); err != nil {
+			if err := tr.Insert(&Entry{int64(key), key}); err != nil {
 				t.Fatalf("error inserting key %d: %+v", key, err)
 			}
 			t.Logf("b tree after inserting key %d:\n%s", key, tr.ToString())
@@ -381,7 +422,7 @@ func TestBTreeUpdateParent(t *testing.T) {
 
 		// tr := newTree(t, tc.maxEntries, tc.numKeys, 1)
 		for _, key := range tc.deleteKeys {
-			if err := tr.Delete(key); err != nil {
+			if err := tr.Delete(int64(key)); err != nil {
 				t.Fatalf("case %d error deleting key %d: %+v", i, key, err)
 			}
 			t.Logf("b tree after deleting key %d:\n%s", key, tr.ToString())
@@ -398,7 +439,7 @@ func TestBTreeFind(t *testing.T) {
 	// newTree(t, 4, numkeys, 2)
 	tr := newTree(t, 4, numkeys, 2)
 	for i := 1; i < 20; i++ {
-		v, err := tr.Find(i)
+		v, err := tr.Find(int64(i))
 		if i%2 == 0 {
 			if err != ErrKeyNotFound {
 				t.Fatalf("expect error %+v but got %+v", ErrKeyNotFound, err)

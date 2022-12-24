@@ -11,7 +11,7 @@ type BPlusTree struct {
 	root    *tNode
 }
 
-func (tr *BPlusTree) Find(key int) (interface{}, error) {
+func (tr *BPlusTree) Find(key int64) (interface{}, error) {
 	tn := tr.root
 
 	for !tn.isLeaf {
@@ -106,7 +106,7 @@ func (tr *BPlusTree) doInsert(root *tNode, e *Entry) (*Entry, error) {
 	return ne, nil
 }
 
-func (t *BPlusTree) Delete(key int) error {
+func (t *BPlusTree) Delete(key int64) error {
 	deleted, err := t.deleteEntry(t.root, key)
 	if err != nil {
 		return fmt.Errorf("error deleting key %d: %+v", key, err)
@@ -126,7 +126,7 @@ func (t *BPlusTree) Delete(key int) error {
 	return nil
 }
 
-func (t *BPlusTree) deleteEntry(root *tNode, key int) (bool, error) {
+func (t *BPlusTree) deleteEntry(root *tNode, key int64) (bool, error) {
 	if root.isLeaf {
 		return true, root.deleteEntry(key)
 	}

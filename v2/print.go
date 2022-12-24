@@ -2,7 +2,7 @@ package v2
 
 import (
 	"bytes"
-	"strconv"
+	"fmt"
 	"strings"
 )
 
@@ -39,7 +39,7 @@ func (tn *tNode) ChildrenStr() string {
 			continue
 		}
 
-		keys = append(keys, strconv.Itoa(k.key))
+		keys = append(keys, fmt.Sprintf("%d", k.key))
 	}
 
 	val := "(" + strings.Join(keys, ",") + ")"

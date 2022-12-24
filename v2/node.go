@@ -21,7 +21,7 @@ type tNode struct {
 }
 
 type Entry struct {
-	key     int
+	key     int64
 	pointer interface{}
 }
 
@@ -39,7 +39,7 @@ func newTNode(isLeaf bool, maxSize int) *tNode {
 }
 
 // findInsertPos find smallest index such that tn.entries[index].key >= key
-func (tn *tNode) findInsertPos(key int, s, e int) int {
+func (tn *tNode) findInsertPos(key int64, s, e int) int {
 	for s < e {
 		m := (s + e) / 2
 		if tn.entries[m].key >= key {
@@ -53,12 +53,12 @@ func (tn *tNode) findInsertPos(key int, s, e int) int {
 }
 
 // findInsertPos find smallest index such that tn.entries[index].key >= key
-func (tn *tNode) findLeafInsertPos(key int) int {
+func (tn *tNode) findLeafInsertPos(key int64) int {
 	return tn.findInsertPos(key, 0, len(tn.entries)-1)
 }
 
 // findInsertPos find smallest index such that tn.entries[index].key >= key
-func (tn *tNode) findInternalInsertPos(key int) int {
+func (tn *tNode) findInternalInsertPos(key int64) int {
 	return tn.findInsertPos(key, 1, len(tn.entries))
 }
 
@@ -136,7 +136,7 @@ func (tn *tNode) splitLeafNode() *Entry {
 }
 
 // merge nodes
-func (tn *tNode) mergeNodes(key int, right *tNode) bool {
+func (tn *tNode) mergeNodes(key int64, right *tNode) bool {
 	if tn.isLeaf && right.isLeaf {
 		return tn.mergeLeaves(right)
 	} else if !tn.isLeaf && !right.isLeaf {
@@ -166,7 +166,7 @@ func (tn *tNode) mergeLeaves(right *tNode) bool {
 }
 
 // mergeInternalNodes mrege children of right into tn
-func (tn *tNode) mergeInternalNodes(key int, right *tNode) bool {
+func (tn *tNode) mergeInternalNodes(key int64, right *tNode) bool {
 	sz := len(tn.entries) + len(right.entries)
 
 	// unable to merge
@@ -192,7 +192,7 @@ func (tn *tNode) mergeInternalNodes(key int, right *tNode) bool {
 }
 
 // delete entry with key
-func (tn *tNode) deleteEntry(key int) error {
+func (tn *tNode) deleteEntry(key int64) error {
 	var pos int
 	if !tn.isLeaf {
 		pos = tn.findInternalInsertPos(key)
@@ -224,7 +224,7 @@ func (tn *tNode) tooFewPointers() bool {
 	return len(tn.entries) < cap(tn.entries)/2
 }
 
-func borrowFromLeft(left *tNode, key *int, right *tNode) {
+func borrowFromLeft(left *tNode, key *int64, right *tNode) {
 	if left.isLeaf && right.isLeaf {
 		leafBorrowFromLeft(left, key, right)
 		return
@@ -239,7 +239,7 @@ func borrowFromLeft(left *tNode, key *int, right *tNode) {
 	panic("unreachable")
 }
 
-func borrowFromRight(left *tNode, key *int, right *tNode) {
+func borrowFromRight(left *tNode, key *int64, right *tNode) {
 	if left.isLeaf && right.isLeaf {
 		leafBorrowFromRight(left, key, right)
 		return
@@ -254,7 +254,7 @@ func borrowFromRight(left *tNode, key *int, right *tNode) {
 	panic("unreachable")
 }
 
-func leafBorrowFromLeft(left *tNode, key *int, right *tNode) {
+func leafBorrowFromLeft(left *tNode, key *int64, right *tNode) {
 	sz := len(left.entries)
 	e := left.entries[sz-2]
 
@@ -272,7 +272,7 @@ func leafBorrowFromLeft(left *tNode, key *int, right *tNode) {
 	right.entries[0] = e
 }
 
-func leafBorrowFromRight(left *tNode, key *int, right *tNode) {
+func leafBorrowFromRight(left *tNode, key *int64, right *tNode) {
 	sz := len(right.entries)
 	e := right.entries[0]
 
@@ -290,7 +290,7 @@ func leafBorrowFromRight(left *tNode, key *int, right *tNode) {
 	left.entries[sz-1] = e
 }
 
-func internalBorrowFromLeft(left *tNode, key *int, right *tNode) {
+func internalBorrowFromLeft(left *tNode, key *int64, right *tNode) {
 	glog.V(2).Infof("borrow one key from left %s to right %s", left.ChildrenStr(), right.ChildrenStr())
 	sz := len(left.entries)
 	e := left.entries[sz-1]
@@ -313,7 +313,7 @@ func internalBorrowFromLeft(left *tNode, key *int, right *tNode) {
 	right.entries[0] = e
 }
 
-func internalBorrowFromRight(left *tNode, key *int, right *tNode) {
+func internalBorrowFromRight(left *tNode, key *int64, right *tNode) {
 	glog.V(2).Infof("borrow one key from right %s to left %s", right.ChildrenStr(), left.ChildrenStr())
 	sz := len(right.entries)
 	e := right.entries[0]

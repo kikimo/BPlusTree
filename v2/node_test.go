@@ -10,7 +10,7 @@ func TestLeafInsert(t *testing.T) {
 	keys := []int{5, 1, 4}
 	for _, key := range keys {
 		e := &Entry{
-			key:     key,
+			key:     int64(key),
 			pointer: key,
 		}
 		if err := leaf.insertLeaf(e); err != nil {
@@ -45,7 +45,7 @@ func TestLeafInsert(t *testing.T) {
 func TestSplitLeafNodeEven(t *testing.T) {
 	leaf := newTNode(true, 4)
 	for i := 4; i >= 1; i-- {
-		leaf.insertLeaf(&Entry{key: i, pointer: i})
+		leaf.insertLeaf(&Entry{key: int64(i), pointer: i})
 	}
 	t.Logf("leaf before split: %+v", leaf.ToString())
 
@@ -66,7 +66,7 @@ func TestSplitLeafNodeEven(t *testing.T) {
 func TestSplitLeafNodeOdd(t *testing.T) {
 	leaf := newTNode(true, 5)
 	for i := 5; i >= 1; i-- {
-		leaf.insertLeaf(&Entry{key: i, pointer: i})
+		leaf.insertLeaf(&Entry{key: int64(i), pointer: i})
 	}
 	t.Logf("leaf before split:\n%+v", leaf.ToString())
 
@@ -89,9 +89,9 @@ func TestSplitInternalNodeEven(t *testing.T) {
 	inode.entries = inode.entries[:1]
 	inode.entries[0] = Entry{pointer: &tNode{parent: inode}}
 	for i := 4; i >= 1; i-- {
-		pos := inode.findInternalInsertPos(i)
+		pos := inode.findInternalInsertPos(int64(i))
 		t.Logf("insert key %d at %d", i, pos)
-		inode.insertAt(pos, &Entry{key: i, pointer: &tNode{parent: inode}})
+		inode.insertAt(pos, &Entry{key: int64(i), pointer: &tNode{parent: inode}})
 	}
 
 	ne := inode.splitInternalNode()
@@ -116,9 +116,9 @@ func TestSplitInternalNodeOdd(t *testing.T) {
 	inode.entries = inode.entries[:1]
 	inode.entries[0] = Entry{pointer: &tNode{parent: inode}}
 	for i := 5; i >= 1; i-- {
-		pos := inode.findInternalInsertPos(i)
+		pos := inode.findInternalInsertPos(int64(i))
 		t.Logf("insert key %d at %d", i, pos)
-		inode.insertAt(pos, &Entry{key: i, pointer: &tNode{parent: inode}})
+		inode.insertAt(pos, &Entry{key: int64(i), pointer: &tNode{parent: inode}})
 	}
 
 	ne := inode.splitInternalNode()
@@ -363,10 +363,10 @@ func TestTooFewPointers(t *testing.T) {
 
 		for _, k := range tc.keys {
 			if node.isLeaf {
-				node.insertLeaf(&Entry{key: k})
+				node.insertLeaf(&Entry{key: int64(k)})
 			} else {
-				pos := node.findInternalInsertPos(k)
-				node.insertAt(pos, &Entry{key: k})
+				pos := node.findInternalInsertPos(int64(k))
+				node.insertAt(pos, &Entry{key: int64(k)})
 			}
 		}
 
